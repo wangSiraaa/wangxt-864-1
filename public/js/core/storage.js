@@ -7,7 +7,8 @@ const Storage = (() => {
     RUNNER_BUSY_STATE: 'ce_runner_busy_state',
     UI_PREFERENCES: 'ce_ui_prefs',
     LAST_SYNC: 'ce_last_sync',
-    VIEW_STATE: 'ce_view_state'
+    VIEW_STATE: 'ce_view_state',
+    COMPARE_CANDIDATES: 'ce_compare_candidates'
   };
 
   function safeGet(key, defaultValue = null) {
@@ -144,6 +145,56 @@ const Storage = (() => {
     return true;
   }
 
+  function getCompareCandidates(userId) {
+    const all = safeGet(KEYS.COMPARE_CANDIDATES, {});
+    const key = userId || 'default';
+    return all[key] || [];
+  }
+
+  function setCompareCandidates(userId, ids) {
+    const all = safeGet(KEYS.COMPARE_CANDIDATES, {});
+    const key = userId || 'default';
+    all[key] = Array.from(new Set(ids || []));
+    return safeSet(KEYS.COMPARE_CANDIDATES, all);
+  }
+
+  function addCompareCandidate(userId, orderId) {
+    const current = getCompareCandidates(userId);
+    if (current.indexOf(orderId) < 0) {
+      current.push(orderId);
+    }
+    return setCompareCandidates(userId, current);
+  }
+
+  function removeCompareCandidate(userId, orderId) {
+    const current = getCompareCandidates(userId);
+    const idx = current.indexOf(orderId);
+    if (idx >= 0) {
+      current.splice(idx, 1);
+    }
+    return setCompareCandidates(userId, current);
+  }
+
+  function toggleCompareCandidate(userId, orderId) {
+    const current = getCompareCandidates(userId);
+    const idx = current.indexOf(orderId);
+    if (idx >= 0) {
+      current.splice(idx, 1);
+    } else {
+      current.push(orderId);
+    }
+    return setCompareCandidates(userId, current);
+  }
+
+  function clearCompareCandidates(userId) {
+    return setCompareCandidates(userId, []);
+  }
+
+  function isCompareCandidate(userId, orderId) {
+    const current = getCompareCandidates(userId);
+    return current.indexOf(orderId) >= 0;
+  }
+
   return {
     KEYS,
     getCurrentRole,
@@ -159,6 +210,13 @@ const Storage = (() => {
     setUiPreferences,
     getViewState,
     setViewState,
+    getCompareCandidates,
+    setCompareCandidates,
+    addCompareCandidate,
+    removeCompareCandidate,
+    toggleCompareCandidate,
+    clearCompareCandidates,
+    isCompareCandidate,
     exportAll,
     importAll,
     clearAllLocal,

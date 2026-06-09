@@ -104,8 +104,19 @@ const Pages = (() => {
     return orders;
   }
 
-  function orderRow(o) {
-    return '<tr data-order-id="' + o.id + '">' +
+  function orderRow(o, pageKey) {
+    const user = Storage.getCurrentUser();
+    const userId = user.id;
+    const isCandidate = Storage.isCompareCandidate(userId, o.id);
+    const enableCompare = pageKey === 'order_list_student';
+    let firstCol = '';
+    if (enableCompare) {
+      firstCol = '<td class="compare-checkbox-col"><label class="compare-checkbox-label">' +
+        '<input type="checkbox" class="compare-checkbox" data-order-id="' + o.id + '" ' + (isCandidate ? 'checked' : '') + '>' +
+        '<span class="compare-checkmark"></span></label></td>';
+    }
+    return '<tr data-order-id="' + o.id + '" class="' + (enableCompare && isCandidate ? 'compare-selected' : '') + '">' +
+      firstCol +
       '<td><div class="font-bold">' + o.code + '</div><div class="text-sm text-muted">' + UI.formatTime(o.createdAt) + '</div></td>' +
       '<td>' + (o.title || '') + '</td>' +
       '<td>' + (o.pickupAddress || '-') + '<br><span class="text-muted">→</span> ' + (o.deliveryAddress || '-') + '</td>' +
@@ -121,17 +132,132 @@ const Pages = (() => {
     const f = Object.assign({ status: 'all', keyword: '' }, saved);
     const statusOpts = Object.keys(Models.STATUS_LABELS).map(k =>
       '<option value="' + k + '" ' + (f.status === k ? 'selected' : '') + '>' + Models.STATUS_LABELS[k] + '</option>').join('');
+    const enableCompare = pageKey === 'order_list_student';
+    const user = Storage.getCurrentUser();
+    const userId = user.id;
+    const candidates = Storage.getCompareCandidates(userId);
+    const candidateIds = new Set(candidates);
+    const selectedCount = orders.filter(o => candidateIds.has(o.id)).length;
     let html = '<div class="filter-bar">' +
       '<div class="filter-group"><label>关键字</label><input type="text" id="fl_keyword" placeholder="订单号/标题/地址" value="' + UI.escapeHtml(f.keyword || '') + '"></div>' +
       '<div class="filter-group"><label>状态</label><select id="fl_status"><option value="all">全部</option>' + statusOpts + '</select></div>' +
       '<div class="flex" style="align-items:flex-end;gap:8px"><button class="btn btn-primary btn-sm" id="fl_search">🔍 查询</button><button class="btn btn-ghost btn-sm" id="fl_reset">重置</button></div></div>';
+    if (enableCompare) {
+      html += '<div class="compare-action-bar" id="compareActionBar">' +
+        '<div class="compare-info">' +
+          '<label class="compare-all-label">' +
+            '<input type="checkbox" id="compareSelectAll" ' + (orders.length > 0 && selectedCount === orders.length ? 'checked' : '') + '>' +
+            '<span>全选本页</span>' +
+          '</label>' +
+          '<span class="compare-selected-info">已选 <b id="compareSelectedCount">' + candidates.length + '</b> 个订单' + (selectedCount !== candidates.length ? '（本页 ' + selectedCount + ' 个）' : '') + '</span>' +
+        '</div>' +
+        '<div class="compare-actions">' +
+          '<button class="btn btn-outline btn-sm" id="compareClearBtn">清空选择</button>' +
+          '<button class="btn btn-primary btn-sm" id="compareStartBtn" ' + (candidates.length < 2 ? 'disabled' : '') + '>⚖️ 候选对比 (' + candidates.length + ')</button>' +
+        '</div>' +
+      '</div>';
+    }
+    let colSpan = 8;
+    let headerRow = '<th>订单号/时间</th><th>标题</th><th>配送地址</th><th>规格</th><th>金额</th><th>状态</th><th>跑腿员</th><th>操作</th>';
+    if (enableCompare) {
+      colSpan = 9;
+      headerRow = '<th class="compare-checkbox-col"><label class="compare-checkbox-label">' +
+        '<input type="checkbox" id="compareSelectAllHeader" ' + (orders.length > 0 && selectedCount === orders.length ? 'checked' : '') + '>' +
+        '<span class="compare-checkmark"></span></label></th>' + headerRow;
+    }
     html += '<div class="card"><div class="card-body"><div class="table-wrapper"><table class="data-table"><thead><tr>' +
-      '<th>订单号/时间</th><th>标题</th><th>配送地址</th><th>规格</th><th>金额</th><th>状态</th><th>跑腿员</th><th>操作</th>' +
+      headerRow +
       '</tr></thead><tbody>';
-    if (orders.length === 0) html += '<tr><td colspan="8"><div class="empty-state"><div class="icon">📭</div><div class="text">暂无订单</div></div></td></tr>';
-    else html += orders.map(orderRow).join('');
+    if (orders.length === 0) html += '<tr><td colspan="' + colSpan + '"><div class="empty-state"><div class="icon">📭</div><div class="text">暂无订单</div></div></td></tr>';
+    else html += orders.map(o => orderRow(o, pageKey)).join('');
     html += '</tbody></table></div></div></div>';
+    if (enableCompare && candidates.length > 0) {
+      html += '<div class="compare-float-bar" id="compareFloatBar">' +
+        '<div class="compare-float-info">📋 已选择 <b>' + candidates.length + '</b> 个订单进行候选对比</div>' +
+        '<div class="compare-float-actions">' +
+          '<button class="btn btn-sm btn-outline" id="compareFloatClear">清空</button>' +
+          '<button class="btn btn-sm btn-primary" id="compareFloatStart">⚖️ 开始对比</button>' +
+        '</div>' +
+      '</div>';
+    }
     return html;
+  }
+
+  function showCompareModal(userId) {
+    const candidateIds = Storage.getCompareCandidates(userId);
+    if (candidateIds.length < 2) {
+      UI.showToast('无法对比', '请至少选择2个订单进行对比', 'warning');
+      return;
+    }
+    DB.open().then(() => {
+      return Promise.all(candidateIds.map(id => DB.get(DB.STORES.orders, id)));
+    }).then(orders => {
+      const validOrders = orders.filter(o => o);
+      if (validOrders.length < 2) {
+        UI.showToast('无法对比', '有效订单不足2个', 'warning');
+        return;
+      }
+      Audit.log(Audit.ACTIONS.ORDER_COMPARE, userId, { orderIds: candidateIds, count: validOrders.length }, 'AUDIT');
+      const modal = UI.openModal(UI.orderCompareTable(validOrders), {
+        title: '⚖️ 订单候选对比',
+        size: 'large',
+        footerHtml: '<div style="display:flex;gap:8px;justify-content:space-between;align-items:center">' +
+          '<div class="text-sm text-muted">提示：横向滚动查看更多字段</div>' +
+          '<button class="btn btn-outline" data-action="compare-clear">清空候选</button>' +
+          '<button class="btn btn-primary" data-action="close-modal">关闭</button></div>'
+      });
+      if (modal && modal.el) {
+        const clearBtn = modal.el.querySelector('[data-action="compare-clear"]');
+        if (clearBtn) clearBtn.addEventListener('click', () => {
+          Storage.clearCompareCandidates(userId);
+          UI.showToast('已清空', '候选对比已清空', 'success');
+          modal.close();
+          const currentPage = App.currentPage || 'order_list_student';
+          App.renderPage(currentPage);
+        });
+      }
+    }).catch(e => {
+      UI.showToast('加载失败', e.message || String(e), 'error');
+    });
+  }
+
+  function updateCompareUI(page, user, orderIdsOnPage) {
+    const userId = user.id;
+    const candidates = Storage.getCompareCandidates(userId);
+    const candidateSet = new Set(candidates);
+    const countEl = document.getElementById('compareSelectedCount');
+    if (countEl) countEl.textContent = candidates.length;
+    const startBtn = document.getElementById('compareStartBtn');
+    if (startBtn) {
+      startBtn.disabled = candidates.length < 2;
+      startBtn.textContent = '⚖️ 候选对比 (' + candidates.length + ')';
+    }
+    const floatBar = document.getElementById('compareFloatBar');
+    if (floatBar) {
+      const floatInfo = floatBar.querySelector('.compare-float-info b');
+      if (floatInfo) floatInfo.textContent = candidates.length;
+      floatBar.style.display = candidates.length > 0 ? 'flex' : 'none';
+    }
+    const selectAll1 = document.getElementById('compareSelectAll');
+    const selectAll2 = document.getElementById('compareSelectAllHeader');
+    if (orderIdsOnPage && orderIdsOnPage.length > 0) {
+      const pageSelected = orderIdsOnPage.filter(id => candidateSet.has(id)).length;
+      const allChecked = pageSelected === orderIdsOnPage.length;
+      if (selectAll1) selectAll1.checked = allChecked;
+      if (selectAll2) selectAll2.checked = allChecked;
+    }
+    document.querySelectorAll('tr[data-order-id]').forEach(tr => {
+      const id = tr.getAttribute('data-order-id');
+      const isSelected = candidateSet.has(id);
+      tr.classList.toggle('compare-selected', isSelected);
+      const cb = tr.querySelector('.compare-checkbox');
+      if (cb) cb.checked = isSelected;
+    });
+    const selInfo = document.querySelector('.compare-selected-info');
+    if (selInfo && orderIdsOnPage) {
+      const pageSelected = orderIdsOnPage.filter(id => candidateSet.has(id)).length;
+      selInfo.innerHTML = '已选 <b>' + candidates.length + '</b> 个订单' + (pageSelected !== candidates.length ? '（本页 ' + pageSelected + ' 个）' : '');
+    }
   }
 
   function bindOrderTable(page) {
@@ -150,6 +276,60 @@ const Pages = (() => {
     document.querySelectorAll('tr[data-order-id]').forEach(tr => {
       const id = tr.getAttribute('data-order-id');
       tr.querySelectorAll('[data-action="view"]').forEach(b => b.addEventListener('click', () => App.renderPage('order_detail', { id })));
+    });
+
+    const enableCompare = page === 'order_list_student';
+    if (!enableCompare) return;
+
+    const user = Storage.getCurrentUser();
+    const userId = user.id;
+    const orderIdsOnPage = Array.from(document.querySelectorAll('tr[data-order-id]')).map(tr => tr.getAttribute('data-order-id')).filter(Boolean);
+
+    document.querySelectorAll('.compare-checkbox').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = cb.getAttribute('data-order-id');
+        if (!id) return;
+        if (cb.checked) {
+          Storage.addCompareCandidate(userId, id);
+        } else {
+          Storage.removeCompareCandidate(userId, id);
+        }
+        updateCompareUI(page, user, orderIdsOnPage);
+      });
+    });
+
+    const selectAllHandler = (chkEl) => {
+      if (!chkEl) return;
+      chkEl.addEventListener('change', () => {
+        const shouldSelect = chkEl.checked;
+        if (shouldSelect) {
+          orderIdsOnPage.forEach(id => Storage.addCompareCandidate(userId, id));
+        } else {
+          orderIdsOnPage.forEach(id => Storage.removeCompareCandidate(userId, id));
+        }
+        updateCompareUI(page, user, orderIdsOnPage);
+      });
+    };
+    selectAllHandler(document.getElementById('compareSelectAll'));
+    selectAllHandler(document.getElementById('compareSelectAllHeader'));
+
+    const clearBtn = document.getElementById('compareClearBtn');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      Storage.clearCompareCandidates(userId);
+      UI.showToast('已清空', '候选对比已清空', 'success');
+      updateCompareUI(page, user, orderIdsOnPage);
+    });
+
+    const startCompare = () => showCompareModal(userId);
+    const startBtn = document.getElementById('compareStartBtn');
+    if (startBtn) startBtn.addEventListener('click', startCompare);
+    const floatStart = document.getElementById('compareFloatStart');
+    if (floatStart) floatStart.addEventListener('click', startCompare);
+    const floatClear = document.getElementById('compareFloatClear');
+    if (floatClear) floatClear.addEventListener('click', () => {
+      Storage.clearCompareCandidates(userId);
+      UI.showToast('已清空', '候选对比已清空', 'success');
+      updateCompareUI(page, user, orderIdsOnPage);
     });
   }
 

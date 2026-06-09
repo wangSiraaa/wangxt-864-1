@@ -214,6 +214,76 @@ const UI = (() => {
       '<span style="margin-left:8px">' + (text || '加载中...') + '</span></div>';
   }
 
+  function orderCompareTable(orders) {
+    if (!orders || orders.length === 0) {
+      return '<div class="empty-state"><div class="icon">📭</div><div class="text">暂无可对比订单</div></div>';
+    }
+    const fields = [
+      { key: 'code', label: '订单号', format: v => '<div class="font-bold">' + (v || '-') + '</div>' },
+      { key: 'createdAt', label: '创建时间', format: v => formatTime(v) },
+      { key: 'title', label: '标题', format: v => v || '-' },
+      { key: 'pickupAddress', label: '取货地址', format: v => v || '-' },
+      { key: 'deliveryAddress', label: '送达地址', format: v => v || '-' },
+      { key: 'pickupContact', label: '取件联系', format: v => v || '-' },
+      { key: 'deliveryContact', label: '收件联系', format: v => v || '-' },
+      { key: 'weightKg', label: '重量', format: v => (v || 0) + 'kg' },
+      { key: 'distanceKm', label: '距离', format: v => (v || 0) + 'km' },
+      { key: 'isNight', label: '夜间配送', format: v => v ? '<span class="tag tag-night">夜间</span>' : '<span class="text-muted">否</span>' },
+      { key: 'status', label: '状态', format: v => statusBadge(v) },
+      { key: 'runnerName', label: '跑腿员', format: v => v || '<span class="text-muted">未接单</span>' },
+      { key: 'description', label: '备注', format: v => v || '<span class="text-muted">-</span>' },
+      { key: 'payAmount', label: '实付金额', format: v => '<span class="font-bold text-primary font-mono">' + formatMoney(v || 0) + '</span>' }
+    ];
+    let html = '<div class="compare-toolbar"><div class="compare-count">已选 <b>' + orders.length + '</b> 个订单进行对比</div>';
+    html += '<div class="compare-hint">横向滚动查看更多字段 →</div></div>';
+    html += '<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th class="compare-field-col">对比项</th>';
+    orders.forEach(o => {
+      html += '<th class="compare-order-col"><div class="compare-order-title">' + (o.code || '') + '</div><div class="compare-order-sub">' + formatTimeShort(o.createdAt) + '</div></th>';
+    });
+    html += '</tr></thead><tbody>';
+    fields.forEach(f => {
+      html += '<tr><td class="compare-field-col"><div class="compare-field-label">' + f.label + '</div></td>';
+      orders.forEach(o => {
+        const val = o[f.key];
+        html += '<td class="compare-order-col">' + (f.format ? f.format(val) : (val || '-')) + '</td>';
+      });
+      html += '</tr>';
+    });
+    if (orders.every(o => o.feeDetail)) {
+      html += '<tr><td class="compare-field-col compare-section-row" colspan="' + (orders.length + 1) + '"><div class="compare-section-title">💰 费用明细对比</div></td></tr>';
+      const feeFields = [
+        { label: '基础配送费', key: 'baseFee' },
+        { label: '重量阶梯费', key: 'weightFee' },
+        { label: '距离附加费', key: 'distanceFee' },
+        { label: '夜间附加费', key: 'nightFee' },
+        { label: '优惠券抵扣', key: 'couponDiscount' }
+      ];
+      feeFields.forEach(ff => {
+        html += '<tr><td class="compare-field-col"><div class="compare-field-label">' + ff.label + '</div></td>';
+        orders.forEach(o => {
+          const fd = o.feeDetail && o.feeDetail[ff.key];
+          const amt = fd ? fd.amount : 0;
+          const isDisc = ff.key === 'couponDiscount';
+          html += '<td class="compare-order-col font-mono ' + (isDisc ? 'text-success' : '') + '">' + (isDisc ? '-' : '') + formatMoney(amt || 0) + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '<tr><td class="compare-field-col"><div class="compare-field-label compare-total">原始合计</div></td>';
+      orders.forEach(o => {
+        html += '<td class="compare-order-col font-mono">' + formatMoney((o.feeDetail && o.feeDetail.originalTotal) || 0) + '</td>';
+      });
+      html += '</tr>';
+      html += '<tr><td class="compare-field-col"><div class="compare-field-label compare-total highlight">最终实付</div></td>';
+      orders.forEach(o => {
+        const total = o.feeDetail && o.feeDetail.overweight && o.feeDetail.overweight.required ? o.feeDetail.overweightTotal : ((o.feeDetail && o.feeDetail.finalTotal) || 0);
+        html += '<td class="compare-order-col font-mono font-bold text-primary compare-total highlight">' + formatMoney(total) + '</td>';
+      });
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    return html;
+  }
+
   return {
     showToast,
     openModal,
@@ -227,6 +297,7 @@ const UI = (() => {
     orderTimeline,
     renderLogPanel,
     escapeHtml,
-    loadingHtml
+    loadingHtml,
+    orderCompareTable
   };
 })();
