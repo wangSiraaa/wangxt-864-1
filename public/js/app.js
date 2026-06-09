@@ -10,14 +10,14 @@ window.App = {
 (function () {
   var logBuffer = App.logBuffer;
   var defaultPageMap = {
-    student: 'order_create',
+    student: 'order_list_student',
     runner: 'order_pool',
     admin: 'all_orders',
     finance: 'finance_review'
   };
 
   function getDefaultPage(role) {
-    return defaultPageMap[role] || 'order_create';
+    return defaultPageMap[role] || 'order_list_student';
   }
 
   function updateHeader() {
