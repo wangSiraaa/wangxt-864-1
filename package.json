@@ -1,0 +1,21 @@
+{
+  "name": "campus-errand-ticket-station",
+  "version": "1.0.0",
+  "description": "高复杂度校园跑腿订单小票台 - 离线Web前端",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "serve": "http-server -p 8080 -c-1 public/",
+    "smoke": "node tests/smoke.js",
+    "smoke:ui": "node tests/smoke-ui.js"
+  },
+  "dependencies": {
+    "http-server": "^14.1.1"
+  },
+  "devDependencies": {
+    "puppeteer": "^21.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

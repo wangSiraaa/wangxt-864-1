@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#667eea">
+  <title>校园跑腿订单小票台</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="header-left">
+        <h1 class="logo">📦 校园跑腿</h1>
+        <span class="env-badge offline" id="statusBadge">离线</span>
+      </div>
+      <div class="header-center">
+        <div class="role-switcher">
+          <button class="role-btn active" data-role="student">下单学生</button>
+          <button class="role-btn" data-role="runner">跑腿员</button>
+          <button class="role-btn" data-role="admin">管理员</button>
+          <button class="role-btn" data-role="finance">财务复核员</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="user-info">
+          <span id="currentUserName">学生_小明</span>
+          <button class="audit-btn" id="openAuditBtn" title="审计日志">📋</button>
+          <button class="export-btn" id="exportBtn" title="导出JSON">⬇️</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <nav class="side-nav" id="sideNav"></nav>
+      <section class="content-area" id="contentArea">
+        <div id="pageContent"></div>
+      </section>
+      <aside class="log-panel" id="logPanel">
+        <div class="log-header">
+          <h3>📝 可追踪日志</h3>
+          <div class="log-controls">
+            <select id="logLevelFilter">
+              <option value="all">全部</option>
+              <option value="INFO">信息</option>
+              <option value="WARN">警告</option>
+              <option value="ERROR">错误</option>
+              <option value="AUDIT">审计</option>
+            </select>
+            <button class="clear-log-btn" id="clearLogBtn">清空</button>
+          </div>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </aside>
+    </main>
+
+    <div id="modalRoot"></div>
+
+    <div id="toastContainer"></div>
+  </div>
+
+  <script src="/js/core/models.js"></script>
+  <script src="/js/core/database.js"></script>
+  <script src="/js/core/storage.js"></script>
+  <script src="/js/core/audit.js"></script>
+  <script src="/js/core/fee-engine.js"></script>
+  <script src="/js/core/state-machine.js"></script>
+  <script src="/js/core/concurrency.js"></script>
+  <script src="/js/core/roles.js"></script>
+  <script src="/js/ui/components.js"></script>
+  <script src="/js/ui/pages.js"></script>
+  <script src="/js/ui/modals.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
